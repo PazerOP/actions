@@ -1,0 +1,241 @@
+name: Trigger Claude
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: write
+  id-token: write
+
+env:
+  MH_CLAUDE_ANNOTATIONS: |
+    ## GitHub Actions Annotations
+    When providing feedback on code, you can create inline source code annotations using GitHub Actions workflow commands.
+    These commands MUST start at the beginning of a line:
+
+    ::error file=path/to/file.cs,line=123::Your error message here
+    ::warning file=path/to/file.cs,line=456::Your warning message here
+    ::notice file=path/to/file.cs,line=789::Your notice message here
+
+    These commands create actual annotations that appear inline in the GitHub UI on the specified file and line,
+    rather than just code blocks in comments. Use these when you want to highlight specific issues, suggestions,
+    or important notes about particular lines of code.
+  MH_CLAUDE_PERMALINKS: |
+    ## Permalinks
+    When referencing files in your responses, use GitHub permalinks for precise references:
+    - Format: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.cs#L123
+    - Line ranges: Add #L123-L456 for multi-line references
+    - Examples:
+    	- Single line: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45
+    	- Line range: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45-L50
+
+    Permalinks ensure references remain valid even as code changes, making your feedback more reliable and actionable.
+
+on:
+  workflow_call:
+    inputs:
+      trigger_type:
+        description: 'Type of analysis: success or failure'
+        required: true
+        type: string
+      run_id:
+        description: 'Run ID to analyze (for failure analysis)'
+        required: true
+        type: string
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  debug-trigger:
+    if: always()
+    runs-on: self-hosted
+    timeout-minutes: 1
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+      - name: Debug trigger conditions
+        run: |
+          echo "Debug trigger conditions:"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Trigger type: '${{ inputs.trigger_type }}'"
+          echo "Run ID: ${{ inputs.run_id }}"
+          echo "Checking failure-analysis condition:"
+          echo "  always(): true (implied)"
+          echo "  inputs.trigger_type != 'success': ${{ inputs.trigger_type != 'success' }}"
+          echo "Failure analysis should run: ${{ inputs.trigger_type != 'success' }}"
+
+  mention:
+    if: |
+      github.event_name != 'workflow_call' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash(dotnet:*)"
+          disallowed_tools: "mcp__github_file_ops__commit_files,git"
+          custom_instructions: |
+            You have `dotnet` available to you if you want to try running tests or something
+
+            ${{ env.MH_CLAUDE_ANNOTATIONS }}
+
+            ${{ env.MH_CLAUDE_PERMALINKS }}
+
+
+  failure-analysis:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    if: always() && inputs.trigger_type != 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Download CI logs
+        uses: ./.github/actions/safe-pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          trace: 'true'
+          script: |
+            log_group "Creating run info file" {
+            	"Run ID: ${{ inputs.run_id }}" > run-info.txt
+            	"Repository: ${{ github.repository }}" >> run-info.txt
+            	"Analysis requested by: ${{ github.actor }}" >> run-info.txt
+            	Write-Host "Created run-info.txt"
+            }
+
+            $jobs = log_group "Getting job information" {
+            	Write-Host "Getting jobs for run ${{ inputs.run_id }}..."
+            	$allJobs = gh api "/repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs" | ConvertFrom-Json
+
+            	$failedJobs = $allJobs.jobs | Where-Object { $_.conclusion -eq 'failure' }
+            	Write-Host "Found $($failedJobs.Count) failed jobs"
+
+            	return $allJobs
+            }
+
+            $completedJobs = $jobs.jobs | Where-Object { $_.status -eq 'completed' }
+            Write-Host "Found $($completedJobs.Count) completed jobs to download"
+
+            $jobIndex = 0
+            foreach ($job in $completedJobs) {
+            	$safeName = $job.name -replace '[^a-zA-Z0-9\-_]', '_'
+            	$status = if ($job.conclusion -eq 'failure') { 'failure' } else { 'success' }
+            	$fileName = "job.$jobIndex.$($job.id).$safeName.$status.log"
+
+            	log_group "Downloading logs for job: $($job.name)" {
+            		Write-Host "File: $fileName"
+            		try {
+            			gh api "/repos/${{ github.repository }}/actions/jobs/$($job.id)/logs" > $fileName
+            			Write-Host "Successfully downloaded logs"
+            		} catch {
+            			warn "Failed to download logs for job '$($job.name)' (ID: $($job.id)): $($_.Exception.Message)" | tee "job.$jobIndex.$($job.id).$safeName.logs-unavailable.log"
+            		}
+            	}
+            	$jobIndex++
+            }
+
+      - name: Analyze CI Failure
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          allowed_tools: "Bash(dotnet:*)"
+          disallowed_tools: "mcp__github_file_ops__commit_files,git"
+          custom_instructions: |
+            ${{ env.MH_CLAUDE_ANNOTATIONS }}
+
+            ${{ env.MH_CLAUDE_PERMALINKS }}
+          direct_prompt: |
+            The CI workflow failed. Please analyze the failure using these files:
+            - run-info.txt: Basic run information
+            - job.{local_job_index}.{github_actions_job_id}.{job_name}.{job_result}.log: Individual job logs
+
+            Files are named with index first for proper sorting. Focus on .failure.log files
+            for the root cause, but .success.log files provide context if needed.
+
+            Tasks:
+            - Identify the root cause from the error messages in .failure.log files
+            - Suggest specific fixes for the identified problems
+            - Provide step-by-step troubleshooting guidance
+            - Recommend best practices to prevent similar failures
+
+            IMPORTANT: Do NOT suggest workarounds that hide failures or create silent failures such as:
+            - Commenting out failing tests
+            - Adding "|| true" to ignore errors
+            - Disabling error checking
+            - Removing assertions or validation
+            Focus on actually FIXING the root cause, not masking it.
+
+            Focus on actionable solutions based on the actual error messages.
+
+  code-review:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_call' && inputs.trigger_type == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Review Code
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          disallowed_tools: "mcp__github_file_ops__commit_files,git"
+          custom_instructions: |
+            ${{ env.MH_CLAUDE_ANNOTATIONS }}
+
+            ${{ env.MH_CLAUDE_PERMALINKS }}
+          direct_prompt: |
+            Please review this pull request and provide feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security concerns
+            - Test coverage
+
+            Be constructive and helpful in your feedback.
