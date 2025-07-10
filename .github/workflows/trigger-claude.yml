@@ -100,7 +100,7 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           allowed_tools: "Bash(dotnet:*)"
           disallowed_tools: "mcp__github_file_ops__commit_files,git"
           custom_instructions: |
@@ -174,7 +174,7 @@ jobs:
       - name: Analyze CI Failure
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           use_sticky_comment: true
           allowed_tools: "Bash(dotnet:*)"
           disallowed_tools: "mcp__github_file_ops__commit_files,git"
@@ -223,7 +223,7 @@ jobs:
       - name: Review Code
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           use_sticky_comment: true
           disallowed_tools: "mcp__github_file_ops__commit_files,git"
           custom_instructions: |
