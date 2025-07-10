@@ -54,7 +54,7 @@ on:
 jobs:
   debug-trigger:
     if: always()
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
       - name: Checkout repository
@@ -84,7 +84,7 @@ jobs:
         (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
       )
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout repository
@@ -112,7 +112,7 @@ jobs:
 
 
   failure-analysis:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     if: always() && inputs.trigger_type != 'success'
 
@@ -206,7 +206,7 @@ jobs:
             Focus on actionable solutions based on the actual error messages.
 
   code-review:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name == 'workflow_call' && inputs.trigger_type == 'success'
 
