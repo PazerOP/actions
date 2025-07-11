@@ -1,0 +1,52 @@
+name: Claude CI Analysis
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: write
+  id-token: write
+
+on:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+jobs:
+  route-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Route to appropriate analysis
+        run: |
+          echo "Workflow conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Run ID: ${{ github.event.workflow_run.id }}"
+          
+          if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
+            echo "SUCCESS_ROUTE=true" >> $GITHUB_ENV
+          else
+            echo "FAILURE_ROUTE=true" >> $GITHUB_ENV
+          fi
+
+  trigger-failure-analysis:
+    needs: route-analysis
+    if: env.FAILURE_ROUTE == 'true'
+    uses: ./.github/workflows/claude-failure-analysis.yml
+    with:
+      run_id: ${{ github.event.workflow_run.id }}
+    secrets: inherit
+
+  trigger-code-review:
+    needs: route-analysis
+    if: env.SUCCESS_ROUTE == 'true'
+    uses: ./.github/workflows/claude-code-review.yml
+    secrets: inherit

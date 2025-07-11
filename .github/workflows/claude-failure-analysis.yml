@@ -1,0 +1,134 @@
+name: Claude Failure Analysis
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: write
+  id-token: write
+
+env:
+  MH_CLAUDE_ANNOTATIONS: |
+    ## GitHub Actions Annotations
+    When providing feedback on code, you can create inline source code annotations using GitHub Actions workflow commands.
+    These commands MUST start at the beginning of a line:
+
+    ::error file=path/to/file.cs,line=123::Your error message here
+    ::warning file=path/to/file.cs,line=456::Your warning message here
+    ::notice file=path/to/file.cs,line=789::Your notice message here
+
+    These commands create actual annotations that appear inline in the GitHub UI on the specified file and line,
+    rather than just code blocks in comments. Use these when you want to highlight specific issues, suggestions,
+    or important notes about particular lines of code.
+  MH_CLAUDE_PERMALINKS: |
+    ## Permalinks
+    When referencing files in your responses, use GitHub permalinks for precise references:
+    - Format: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.cs#L123
+    - Line ranges: Add #L123-L456 for multi-line references
+    - Examples:
+    	- Single line: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45
+    	- Line range: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45-L50
+
+    Permalinks ensure references remain valid even as code changes, making your feedback more reliable and actionable.
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: 'Run ID to analyze'
+        required: true
+        type: string
+
+jobs:
+  failure-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Download CI logs
+        uses: ./.github/actions/safe-pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          trace: 'true'
+          script: |
+            log_group "Creating run info file" {
+            	"Run ID: ${{ inputs.run_id }}" > run-info.txt
+            	"Repository: ${{ github.repository }}" >> run-info.txt
+            	"Analysis requested by: ${{ github.actor }}" >> run-info.txt
+            	Write-Host "Created run-info.txt"
+            }
+
+            $jobs = log_group "Getting job information" {
+            	Write-Host "Getting jobs for run ${{ inputs.run_id }}..."
+            	$allJobs = gh api "/repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs" | ConvertFrom-Json
+
+            	$failedJobs = $allJobs.jobs | Where-Object { $_.conclusion -eq 'failure' }
+            	Write-Host "Found $($failedJobs.Count) failed jobs"
+
+            	return $allJobs
+            }
+
+            $completedJobs = $jobs.jobs | Where-Object { $_.status -eq 'completed' }
+            Write-Host "Found $($completedJobs.Count) completed jobs to download"
+
+            $jobIndex = 0
+            foreach ($job in $completedJobs) {
+            	$safeName = $job.name -replace '[^a-zA-Z0-9\-_]', '_'
+            	$status = if ($job.conclusion -eq 'failure') { 'failure' } else { 'success' }
+            	$fileName = "job.$jobIndex.$($job.id).$safeName.$status.log"
+
+            	log_group "Downloading logs for job: $($job.name)" {
+            		Write-Host "File: $fileName"
+            		try {
+            			gh api "/repos/${{ github.repository }}/actions/jobs/$($job.id)/logs" > $fileName
+            			Write-Host "Successfully downloaded logs"
+            		} catch {
+            			warn "Failed to download logs for job '$($job.name)' (ID: $($job.id)): $($_.Exception.Message)" | tee "job.$jobIndex.$($job.id).$safeName.logs-unavailable.log"
+            		}
+            	}
+            	$jobIndex++
+            }
+
+      - name: Analyze CI Failure
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          allowed_tools: "Bash(dotnet:*)"
+          disallowed_tools: "mcp__github_file_ops__commit_files,git"
+          custom_instructions: |
+            ${{ env.MH_CLAUDE_ANNOTATIONS }}
+
+            ${{ env.MH_CLAUDE_PERMALINKS }}
+          direct_prompt: |
+            The CI workflow failed. Please analyze the failure using these files:
+            - run-info.txt: Basic run information
+            - job.{local_job_index}.{github_actions_job_id}.{job_name}.{job_result}.log: Individual job logs
+
+            Files are named with index first for proper sorting. Focus on .failure.log files
+            for the root cause, but .success.log files provide context if needed.
+
+            Tasks:
+            - Identify the root cause from the error messages in .failure.log files
+            - Suggest specific fixes for the identified problems
+            - Provide step-by-step troubleshooting guidance
+            - Recommend best practices to prevent similar failures
+
+            IMPORTANT: Do NOT suggest workarounds that hide failures or create silent failures such as:
+            - Commenting out failing tests
+            - Adding "|| true" to ignore errors
+            - Disabling error checking
+            - Removing assertions or validation
+            Focus on actually FIXING the root cause, not masking it.
+
+            Focus on actionable solutions based on the actual error messages.

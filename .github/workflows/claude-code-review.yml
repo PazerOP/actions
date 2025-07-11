@@ -1,0 +1,70 @@
+name: Claude Code Review
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: write
+  id-token: write
+
+env:
+  MH_CLAUDE_ANNOTATIONS: |
+    ## GitHub Actions Annotations
+    When providing feedback on code, you can create inline source code annotations using GitHub Actions workflow commands.
+    These commands MUST start at the beginning of a line:
+
+    ::error file=path/to/file.cs,line=123::Your error message here
+    ::warning file=path/to/file.cs,line=456::Your warning message here
+    ::notice file=path/to/file.cs,line=789::Your notice message here
+
+    These commands create actual annotations that appear inline in the GitHub UI on the specified file and line,
+    rather than just code blocks in comments. Use these when you want to highlight specific issues, suggestions,
+    or important notes about particular lines of code.
+  MH_CLAUDE_PERMALINKS: |
+    ## Permalinks
+    When referencing files in your responses, use GitHub permalinks for precise references:
+    - Format: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.cs#L123
+    - Line ranges: Add #L123-L456 for multi-line references
+    - Examples:
+    	- Single line: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45
+    	- Line range: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/SimpleYamlWriter/YamlValue.cs#L45-L50
+
+    Permalinks ensure references remain valid even as code changes, making your feedback more reliable and actionable.
+
+on:
+  workflow_call:
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check Actor
+        uses: ./.github/actions/check-actor
+        with:
+          actor: ${{ github.actor }}
+
+      - name: Review Code
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          disallowed_tools: "mcp__github_file_ops__commit_files,git"
+          custom_instructions: |
+            ${{ env.MH_CLAUDE_ANNOTATIONS }}
+
+            ${{ env.MH_CLAUDE_PERMALINKS }}
+          direct_prompt: |
+            Please review this pull request and provide feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security concerns
+            - Test coverage
+
+            Be constructive and helpful in your feedback.
