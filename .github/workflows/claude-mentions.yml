@@ -1,3 +1,18 @@
+# Claude Mention Response Handler
+#
+# Purpose: Responds to @claude mentions in GitHub issues and pull requests
+# Triggers: Issue comments, PR review comments, PR reviews, new issues containing @claude
+#
+# Features:
+# - Detects @claude mentions in various GitHub events
+# - Provides assistance with dotnet tooling support
+# - Creates annotations for code feedback
+# - Uses permalinks for reliable code references
+#
+# Usage:
+# - Comment "@claude help me with this issue" on any issue or PR
+# - Include @claude in issue titles or descriptions for automatic assistance
+
 name: Claude Mentions
 
 permissions:

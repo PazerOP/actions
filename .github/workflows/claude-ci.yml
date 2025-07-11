@@ -1,3 +1,24 @@
+# Claude CI Integration Hub (Main Orchestrator)
+#
+# Purpose: Monitors all workflow completions and routes to appropriate Claude analysis
+# Triggers: Automatically on completion of any workflow in the repository
+#
+# Architecture:
+# - This is the main CI integration point that routes to specialized workflows
+# - Success: Calls claude-code-review.yml for automated code review
+# - Failure: Calls claude-failure-analysis.yml for failure analysis
+# - Mentions: Handled separately by claude-mentions.yml
+#
+# Features:
+# - Universal workflow monitoring (listens to all workflows: ["*"])
+# - Intelligent routing based on workflow conclusion
+# - Job outputs for clean data passing between jobs
+#
+# Usage:
+# - Runs automatically when any workflow completes
+# - No manual intervention required
+# - Primary entry point for CI-triggered Claude integrations
+
 name: Claude CI Analysis
 
 permissions:
@@ -16,6 +37,9 @@ jobs:
   route-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    outputs:
+      should_analyze_failure: ${{ steps.route.outputs.failure }}
+      should_review_code: ${{ steps.route.outputs.success }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,19 +51,22 @@ jobs:
           actor: ${{ github.actor }}
 
       - name: Route to appropriate analysis
+        id: route
         run: |
           echo "Workflow conclusion: ${{ github.event.workflow_run.conclusion }}"
           echo "Run ID: ${{ github.event.workflow_run.id }}"
           
           if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
-            echo "SUCCESS_ROUTE=true" >> $GITHUB_ENV
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "failure=false" >> $GITHUB_OUTPUT
           else
-            echo "FAILURE_ROUTE=true" >> $GITHUB_ENV
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "failure=true" >> $GITHUB_OUTPUT
           fi
 
   trigger-failure-analysis:
     needs: route-analysis
-    if: env.FAILURE_ROUTE == 'true'
+    if: needs.route-analysis.outputs.should_analyze_failure == 'true'
     uses: ./.github/workflows/claude-failure-analysis.yml
     with:
       run_id: ${{ github.event.workflow_run.id }}
@@ -47,6 +74,6 @@ jobs:
 
   trigger-code-review:
     needs: route-analysis
-    if: env.SUCCESS_ROUTE == 'true'
+    if: needs.route-analysis.outputs.should_review_code == 'true'
     uses: ./.github/workflows/claude-code-review.yml
     secrets: inherit

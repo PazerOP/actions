@@ -1,3 +1,20 @@
+# Claude CI Failure Analysis
+#
+# Purpose: Analyzes failed CI workflows and provides detailed troubleshooting guidance
+# Triggers: Called by other workflows via workflow_call with run_id parameter
+#
+# Functionality:
+# - Downloads logs from all jobs in the specified workflow run
+# - Focuses on failed jobs while using successful jobs for context
+# - Provides root cause analysis with specific fixes
+# - Suggests prevention strategies for similar failures
+# - Creates sticky comments with findings and recommendations
+#
+# Usage:
+# - Typically called automatically by claude-ci.yml on CI failures
+# - Can be called manually by trigger-claude.yml with specific run_id
+# - Requires run_id input parameter to identify which workflow run to analyze
+
 name: Claude Failure Analysis
 
 permissions:
