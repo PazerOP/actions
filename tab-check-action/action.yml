@@ -1,0 +1,83 @@
+name: 'Tab Indentation Check'
+description: 'Enforces tab indentation in code files for smaller file sizes and user-customizable display width'
+author: 'PazerOP'
+
+branding:
+	icon: 'check-square'
+	color: 'blue'
+
+inputs:
+	path:
+		description: 'Directory to check (defaults to repository root)'
+		required: false
+		default: '.'
+
+	include:
+		description: 'Glob patterns for files to include (newline or comma separated)'
+		required: false
+		default: |
+			**/*.ts
+			**/*.js
+			**/*.tsx
+			**/*.jsx
+			**/*.sh
+			**/*.bats
+			**/*.yml
+			**/*.yaml
+
+	exclude:
+		description: 'Glob patterns for files to exclude (newline or comma separated)'
+		required: false
+		default: |
+			**/node_modules/**
+			**/dist/**
+			**/build/**
+			**/.git/**
+			**/vendor/**
+			**/*.min.js
+			**/*.min.css
+			**/package-lock.json
+			**/yarn.lock
+			**/pnpm-lock.yaml
+
+	style:
+		description: 'Required indentation style: "tabs" or "spaces"'
+		required: false
+		default: 'tabs'
+
+	ignore-blank-lines:
+		description: 'Ignore lines that are only whitespace'
+		required: false
+		default: 'true'
+
+	ignore-comments:
+		description: 'Ignore indentation inside multi-line comments'
+		required: false
+		default: 'false'
+
+	fail-on-violation:
+		description: 'Fail the action if violations are found'
+		required: false
+		default: 'true'
+
+	max-violations-per-file:
+		description: 'Max violations to report per file (0 = unlimited)'
+		required: false
+		default: '5'
+
+outputs:
+	total-files-checked:
+		description: 'Number of files checked'
+
+	files-with-violations:
+		description: 'Number of files with violations'
+
+	total-violations:
+		description: 'Total number of violating lines'
+
+	violation-list:
+		description: 'JSON array of violation objects'
+
+runs:
+	using: 'node20'
+	main: 'dist/index.js'

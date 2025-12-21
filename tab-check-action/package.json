@@ -1,0 +1,33 @@
+{
+	"name": "tab-check-action",
+	"version": "1.0.0",
+	"description": "GitHub Action to enforce tab/space indentation in code files",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
+		"typecheck": "tsc --noEmit",
+		"all": "npm run typecheck && npm run build"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/PazerOP/actions.git"
+	},
+	"keywords": [
+		"github-actions",
+		"indentation",
+		"tabs",
+		"spaces",
+		"linting"
+	],
+	"author": "PazerOP",
+	"license": "MIT",
+	"dependencies": {
+		"@actions/core": "^1.10.1",
+		"glob": "^10.3.10"
+	},
+	"devDependencies": {
+		"@types/node": "^20.10.0",
+		"@vercel/ncc": "^0.38.1",
+		"typescript": "^5.3.2"
+	}
+}
