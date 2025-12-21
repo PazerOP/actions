@@ -4,7 +4,7 @@
 	"description": "GitHub Action to enforce tab/space indentation in code files",
 	"main": "dist/index.js",
 	"scripts": {
-		"build": "esbuild src/main.ts --bundle --platform=node --target=node20 --minify --outfile=dist/index.js",
+		"build": "esbuild src/main.ts --bundle --platform=node --target=node20 --minify --outfile=dist/index.js --external:undici --external:@actions/http-client --external:@actions/exec",
 		"typecheck": "tsc --noEmit",
 		"all": "npm run typecheck && npm run build"
 	},
