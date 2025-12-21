@@ -1,19 +1,12 @@
 {
-	"name": "tab-check-action",
+	"name": "no-scripts-action",
 	"version": "1.0.0",
-	"description": "GitHub Action to enforce tab/space indentation in code files",
+	"description": "GitHub Action to ensure package.json files don't have scripts sections",
 	"main": "dist/index.js",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/PazerOP/actions.git"
 	},
-	"keywords": [
-		"github-actions",
-		"indentation",
-		"tabs",
-		"spaces",
-		"linting"
-	],
 	"author": "PazerOP",
 	"license": "MIT",
 	"dependencies": {
