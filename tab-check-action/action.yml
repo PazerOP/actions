@@ -17,13 +17,39 @@ inputs:
     required: false
     default: |
       **/*.ts
-      **/*.js
       **/*.tsx
+      **/*.js
       **/*.jsx
+      **/*.json
+      **/*.c
+      **/*.cpp
+      **/*.cc
+      **/*.cxx
+      **/*.h
+      **/*.hpp
+      **/*.hxx
+      **/*.cs
+      **/*.java
+      **/*.py
+      **/*.rb
+      **/*.go
+      **/*.rs
+      **/*.php
+      **/*.swift
+      **/*.kt
+      **/*.kts
       **/*.sh
+      **/*.bash
+      **/*.zsh
+      **/*.ps1
+      **/*.psm1
+      **/*.psd1
       **/*.bats
-      **/*.yml
-      **/*.yaml
+      **/*.zig
+      **/*.vim
+      **/*.sql
+      **/*.pl
+      **/*.pm
 
   exclude:
     description: 'Glob patterns for files to exclude (newline or comma separated)'
@@ -39,6 +65,8 @@ inputs:
       **/package-lock.json
       **/yarn.lock
       **/pnpm-lock.yaml
+      **/*.yml
+      **/*.yaml
 
   style:
     description: 'Required indentation style: "tabs" or "spaces"'
