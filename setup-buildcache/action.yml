@@ -17,6 +17,11 @@ inputs:
     required: false
     default: ''
 
+  cache-scope:
+    description: 'Cache scope: repo (shared across all branches), branch (per branch), or commit (per commit)'
+    required: false
+    default: 'repo'
+
   max-cache-size:
     description: 'Maximum cache size in bytes (default 2GB)'
     required: false
