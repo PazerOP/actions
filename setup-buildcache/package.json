@@ -1,0 +1,24 @@
+{
+	"name": "setup-buildcache",
+	"version": "1.0.0",
+	"description": "GitHub Action to install and configure buildcache",
+	"main": "dist/index.js",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/PazerOP/actions.git"
+	},
+	"author": "PazerOP",
+	"license": "MIT",
+	"dependencies": {
+		"@actions/cache": "^3.2.4",
+		"@actions/core": "^1.10.1",
+		"@actions/exec": "^1.1.1",
+		"@actions/io": "^1.1.3",
+		"@actions/tool-cache": "^2.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "^20.10.0",
+		"esbuild": "^0.27.2",
+		"typescript": "^5.3.2"
+	}
+}
