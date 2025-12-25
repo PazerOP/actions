@@ -1,0 +1,36 @@
+name: 'Setup Buildcache'
+description: 'Install and configure buildcache for faster C/C++ builds'
+author: 'PazerOP'
+
+branding:
+  icon: 'zap'
+  color: 'yellow'
+
+inputs:
+  version:
+    description: 'Buildcache version to install'
+    required: false
+    default: 'v0.31.5'
+
+  cache-key:
+    description: 'Additional cache key suffix for build cache'
+    required: false
+    default: ''
+
+  max-cache-size:
+    description: 'Maximum cache size in bytes (default 2GB)'
+    required: false
+    default: '2147483648'
+
+outputs:
+  cache-hit:
+    description: 'Whether the build cache was restored from cache'
+
+  binary-cache-hit:
+    description: 'Whether the buildcache binary was restored from cache'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+  post: 'dist/post.js'
+  post-if: 'always()'
