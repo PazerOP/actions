@@ -3,6 +3,7 @@ import * as cache from '@actions/cache';
 import * as exec from '@actions/exec';
 import * as path from 'path';
 import * as os from 'os';
+import { getCacheScope, getBuildCacheKey } from './cache-key';
 
 function getBuildCacheDir(): string {
 	return path.join(os.tmpdir(), 'buildcache_cache');
@@ -20,18 +21,16 @@ async function showStats(): Promise<void> {
 async function saveBuildCache(): Promise<void> {
 	const buildCacheDir = getBuildCacheDir();
 	const cacheKey = core.getInput('cache-key') || '';
-	const ref = process.env.GITHUB_REF || 'unknown';
-	const sha = process.env.GITHUB_SHA || 'unknown';
-
-	const primaryKey = `buildcache-${cacheKey}-${ref}-${sha}`;
+	const primaryKey = getBuildCacheKey(cacheKey, getCacheScope());
 
 	core.info(`Saving build cache: ${primaryKey}`);
 
 	try {
-		await cache.saveCache([buildCacheDir], primaryKey);
-		core.info('Build cache saved successfully');
+		const cacheId = await cache.saveCache([buildCacheDir], primaryKey);
+		if (cacheId !== -1) {
+			core.info('Build cache saved successfully');
+		}
 	} catch (error) {
-		// This can fail if cache already exists or other issues
 		if (error instanceof Error && error.message.includes('already exists')) {
 			core.info('Cache already exists, skipping save');
 		} else {

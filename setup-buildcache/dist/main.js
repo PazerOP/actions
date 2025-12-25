@@ -41,12 +41,14 @@ const tc = __importStar(require("@actions/tool-cache"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
+const cache_key_1 = require("./cache-key");
 const GITLAB_RELEASE_BASE = 'https://gitlab.com/bits-n-bites/buildcache/-/releases';
 const LIBSSL_DEB_URL = 'http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb';
 function parseInputs() {
     return {
         version: core.getInput('version') || 'v0.31.5',
         cacheKey: core.getInput('cache-key') || '',
+        cacheScope: (0, cache_key_1.getCacheScope)(),
         maxCacheSize: core.getInput('max-cache-size') || '2147483648',
     };
 }
@@ -73,15 +75,22 @@ async function restoreBinaryCache(inputs, platformInfo) {
     const cacheKey = `buildcache-bin-${platformInfo.os}-${inputs.version}`;
     const buildcacheDir = getBuildcacheDir();
     core.info(`Checking for cached buildcache binary: ${cacheKey}`);
-    const cacheHit = await cache.restoreCache([buildcacheDir], cacheKey);
-    if (cacheHit) {
-        core.info('Buildcache binary restored from cache');
-        core.setOutput('binary-cache-hit', 'true');
-        return true;
+    try {
+        const cacheHit = await cache.restoreCache([buildcacheDir], cacheKey);
+        if (cacheHit) {
+            core.info('Buildcache binary restored from cache');
+            core.setOutput('binary-cache-hit', 'true');
+            return true;
+        }
+        core.info('Buildcache binary not in cache');
+        core.setOutput('binary-cache-hit', 'false');
+        return false;
     }
-    core.info('Buildcache binary not in cache');
-    core.setOutput('binary-cache-hit', 'false');
-    return false;
+    catch (error) {
+        core.warning(`Failed to restore binary cache: ${error}`);
+        core.setOutput('binary-cache-hit', 'false');
+        return false;
+    }
 }
 async function downloadBuildcache(inputs, platformInfo) {
     const downloadUrl = `${GITLAB_RELEASE_BASE}/${inputs.version}/downloads/${platformInfo.downloadName}`;
@@ -146,28 +155,30 @@ async function installLibssl() {
 }
 async function restoreBuildCache(inputs) {
     const buildCacheDir = getBuildCacheDir();
-    const ref = process.env.GITHUB_REF || 'unknown';
-    const sha = process.env.GITHUB_SHA || 'unknown';
-    const primaryKey = `buildcache-${inputs.cacheKey}-${ref}-${sha}`;
-    const restoreKeys = [
-        `buildcache-${inputs.cacheKey}-${ref}-`,
-        `buildcache-${inputs.cacheKey}-`,
-    ];
+    const primaryKey = (0, cache_key_1.getBuildCacheKey)(inputs.cacheKey, inputs.cacheScope);
     core.info(`Restoring build cache: ${primaryKey}`);
-    const cacheHit = await cache.restoreCache([buildCacheDir], primaryKey, restoreKeys);
-    if (cacheHit) {
-        core.info('Build cache restored');
-        core.setOutput('cache-hit', 'true');
-        return true;
+    try {
+        const cacheHit = await cache.restoreCache([buildCacheDir], primaryKey);
+        if (cacheHit) {
+            core.info('Build cache restored');
+            core.setOutput('cache-hit', 'true');
+            return true;
+        }
+        core.info('Build cache not found');
+        core.setOutput('cache-hit', 'false');
+        return false;
     }
-    core.info('Build cache not found');
-    core.setOutput('cache-hit', 'false');
-    return false;
+    catch (error) {
+        core.warning(`Failed to restore build cache: ${error}`);
+        core.setOutput('cache-hit', 'false');
+        return false;
+    }
 }
 async function setupEnvironment(inputs) {
     const buildcacheDir = getBuildcacheDir();
     const buildCacheDir = getBuildCacheDir();
-    const binDir = path.join(buildcacheDir, 'bin');
+    // The archive extracts as buildcache/bin/buildcache, and we copy the buildcache dir into buildcacheDir
+    const binDir = path.join(buildcacheDir, 'buildcache', 'bin');
     // Add to PATH
     core.addPath(binDir);
     // Set environment variables

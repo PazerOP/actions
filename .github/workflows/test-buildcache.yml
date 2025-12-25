@@ -1,0 +1,24 @@
+name: Test Buildcache Action
+
+on:
+  push:
+    paths:
+      - 'setup-buildcache/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup buildcache
+        uses: ./setup-buildcache
+        with:
+          cache-key: test-${{ matrix.os }}
+      - name: Verify buildcache
+        run: buildcache --version
+        shell: bash
