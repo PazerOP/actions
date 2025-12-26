@@ -3,7 +3,7 @@ import * as cache from '@actions/cache';
 import * as exec from '@actions/exec';
 import * as path from 'path';
 import * as os from 'os';
-import { getCacheScope, getBuildCacheKey } from './cache-key';
+import { getCacheScope, getBuildCacheKeyString } from './cache-key';
 
 function getBuildCacheDir(): string {
 	return path.join(os.tmpdir(), 'buildcache_cache');
@@ -21,7 +21,7 @@ async function showStats(): Promise<void> {
 async function saveBuildCache(): Promise<void> {
 	const buildCacheDir = getBuildCacheDir();
 	const cacheKey = core.getInput('cache-key') || '';
-	const primaryKey = getBuildCacheKey(cacheKey, getCacheScope());
+	const primaryKey = getBuildCacheKeyString(cacheKey, getCacheScope());
 
 	core.info(`Saving build cache: ${primaryKey}`);
 
