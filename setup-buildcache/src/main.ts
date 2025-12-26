@@ -6,7 +6,7 @@ import * as tc from '@actions/tool-cache';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { CacheScope, getCacheScope, getBuildCacheKey } from './cache-key';
+import { CacheScope, getCacheScope, getBuildCacheKey, CacheKeyResult } from './cache-key';
 
 const GITLAB_RELEASE_BASE = 'https://gitlab.com/bits-n-bites/buildcache/-/releases';
 const LIBSSL_DEB_URL = 'http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb';
@@ -150,15 +150,25 @@ async function installLibssl(): Promise<void> {
 
 async function restoreBuildCache(inputs: ActionInputs): Promise<boolean> {
 	const buildCacheDir = getBuildCacheDir();
-	const primaryKey = getBuildCacheKey(inputs.cacheKey, inputs.cacheScope);
+	const cacheKeys = getBuildCacheKey(inputs.cacheKey, inputs.cacheScope);
 
-	core.info(`Restoring build cache: ${primaryKey}`);
+	core.info(`Restoring build cache with key: ${cacheKeys.primaryKey}`);
+	if (cacheKeys.restoreKeys.length > 0) {
+		core.info(`Fallback restore-keys: ${cacheKeys.restoreKeys.join(', ')}`);
+	}
 
 	try {
-		const cacheHit = await cache.restoreCache([buildCacheDir], primaryKey);
+		// Pass restore-keys to enable cross-branch cache sharing
+		// GitHub Actions cache is branch-scoped, so restore-keys allow
+		// feature branches to access caches from the default branch
+		const cacheHit = await cache.restoreCache(
+			[buildCacheDir],
+			cacheKeys.primaryKey,
+			cacheKeys.restoreKeys
+		);
 
 		if (cacheHit) {
-			core.info('Build cache restored');
+			core.info(`Build cache restored from key: ${cacheHit}`);
 			core.setOutput('cache-hit', 'true');
 			return true;
 		}
