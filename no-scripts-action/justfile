@@ -4,4 +4,7 @@ build:
 typecheck:
 	npx tsc --noEmit
 
-all: typecheck build
+test:
+	npx vitest run
+
+all: typecheck test build
