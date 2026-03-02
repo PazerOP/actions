@@ -1,0 +1,110 @@
+name: Test No Scripts Action
+
+on:
+  push:
+    paths:
+      - 'no-scripts-action/**'
+  workflow_dispatch:
+
+jobs:
+  test-clean:
+    name: Clean repo (should pass)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test fixture (no scripts)
+        run: |
+          mkdir -p /tmp/test-clean/packages/a
+          echo '{"name": "root"}' > /tmp/test-clean/package.json
+          echo '{"name": "a", "version": "1.0.0"}' > /tmp/test-clean/packages/a/package.json
+
+      - name: Run no-scripts-action
+        id: check
+        uses: ./no-scripts-action
+        with:
+          path: /tmp/test-clean
+
+      - name: Verify outputs
+        run: |
+          echo "files-checked: ${{ steps.check.outputs.files-checked }}"
+          echo "files-with-scripts: ${{ steps.check.outputs.files-with-scripts }}"
+          echo "violation-list: ${{ steps.check.outputs.violation-list }}"
+          test "${{ steps.check.outputs.files-checked }}" -eq 2
+          test "${{ steps.check.outputs.files-with-scripts }}" -eq 0
+
+  test-violation:
+    name: Repo with scripts (should detect violations)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test fixture (with scripts)
+        run: |
+          mkdir -p /tmp/test-violation/packages/bad
+          echo '{"name": "root"}' > /tmp/test-violation/package.json
+          echo '{"name": "bad", "scripts": {"test": "echo test"}}' > /tmp/test-violation/packages/bad/package.json
+
+      - name: Run no-scripts-action (should fail)
+        id: check
+        uses: ./no-scripts-action
+        with:
+          path: /tmp/test-violation
+          fail-on-violation: 'false'
+
+      - name: Verify violations detected
+        run: |
+          echo "files-checked: ${{ steps.check.outputs.files-checked }}"
+          echo "files-with-scripts: ${{ steps.check.outputs.files-with-scripts }}"
+          test "${{ steps.check.outputs.files-checked }}" -eq 2
+          test "${{ steps.check.outputs.files-with-scripts }}" -eq 1
+
+  test-exclude:
+    name: Exclusion patterns work
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test fixture (with excluded dir)
+        run: |
+          mkdir -p /tmp/test-exclude/vendor
+          echo '{"name": "root"}' > /tmp/test-exclude/package.json
+          echo '{"name": "vendor", "scripts": {"build": "make"}}' > /tmp/test-exclude/vendor/package.json
+
+      - name: Run no-scripts-action with exclusion
+        id: check
+        uses: ./no-scripts-action
+        with:
+          path: /tmp/test-exclude
+          exclude: '**/vendor/**'
+
+      - name: Verify excluded dir was skipped
+        run: |
+          test "${{ steps.check.outputs.files-checked }}" -eq 1
+          test "${{ steps.check.outputs.files-with-scripts }}" -eq 0
+
+  test-fail-on-violation:
+    name: fail-on-violation actually fails the step
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test fixture
+        run: |
+          mkdir -p /tmp/test-fail
+          echo '{"name": "bad", "scripts": {"test": "jest"}}' > /tmp/test-fail/package.json
+
+      - name: Run no-scripts-action (expect failure)
+        id: check
+        uses: ./no-scripts-action
+        continue-on-error: true
+        with:
+          path: /tmp/test-fail
+          fail-on-violation: 'true'
+
+      - name: Verify the step failed
+        run: |
+          if [ "${{ steps.check.outcome }}" != "failure" ]; then
+            echo "Expected action to fail but it succeeded"
+            exit 1
+          fi
