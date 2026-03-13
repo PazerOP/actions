@@ -20,7 +20,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             tab-check-action/package-lock.json
-            no-scripts-action/package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: no-scripts-action/go.mod
 
       - uses: extractions/setup-just@v2
 
@@ -32,9 +35,7 @@ jobs:
 
       - name: Build no-scripts-action
         working-directory: no-scripts-action
-        run: |
-          npm ci
-          just build
+        run: just build
 
       - name: Check for uncommitted changes
         run: |

@@ -1,6 +1,6 @@
 name: 'No Scripts Check'
 description: 'Ensures package.json files do not contain scripts sections (use justfiles instead)'
-author: 'PazerOP'
+author: 'wow-look-at-my'
 
 branding:
   icon: 'alert-circle'
@@ -27,13 +27,24 @@ inputs:
 outputs:
   files-checked:
     description: 'Number of package.json files checked'
+    value: ${{ steps.run.outputs.files-checked }}
 
   files-with-scripts:
     description: 'Number of package.json files with scripts sections'
+    value: ${{ steps.run.outputs.files-with-scripts }}
 
   violation-list:
     description: 'JSON array of files with scripts sections'
+    value: ${{ steps.run.outputs.violation-list }}
 
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  using: 'composite'
+  steps:
+    - name: Run no-scripts check
+      id: run
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_EXCLUDE: ${{ inputs.exclude }}
+        INPUT_FAIL-ON-VIOLATION: ${{ inputs.fail-on-violation }}
+      run: ${{ github.action_path }}/dist/no-scripts-check
