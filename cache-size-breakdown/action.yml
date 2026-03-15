@@ -1,0 +1,28 @@
+name: 'Cache Size Breakdown'
+description: 'Reports a clean breakdown of disk usage for cached directories'
+author: 'PazerOP'
+
+branding:
+  icon: 'hard-drive'
+  color: 'blue'
+
+inputs:
+  paths:
+    description: 'Directories to analyze (newline or comma separated)'
+    required: true
+
+  depth:
+    description: 'How many levels deep to show the breakdown (0 = top-level dirs only)'
+    required: false
+    default: '1'
+
+outputs:
+  total-bytes:
+    description: 'Total size in bytes across all paths'
+
+  size-breakdown:
+    description: 'JSON array of { path, bytes, humanSize } objects'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
